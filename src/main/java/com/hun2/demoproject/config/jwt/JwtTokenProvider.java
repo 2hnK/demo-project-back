@@ -3,6 +3,7 @@ package com.hun2.demoproject.config.jwt;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 import javax.crypto.SecretKey;
@@ -29,10 +30,24 @@ public class JwtTokenProvider {
     @Value("${jwt.token.refresh-expiration}")
     private long jwtRefreshExpiration;
 
-    // BASE64 문자열로 된 비밀키를 디코딩하여 키 객체로 변환
+    @Value("${jwt.issuer:demo-project}")
+    private String issuer;
+
+    private volatile SecretKey cachedSigningKey; // TODO: volatile 키워드 사용 이유 학습
+
+    // BASE64 문자열로 된 비밀키를 디코딩하여 키 객체로 변환 (1회 캐싱)
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
+        SecretKey local = cachedSigningKey;
+        if (local == null) {
+            synchronized (this) {
+                local = cachedSigningKey;
+                if (local == null) {
+                    byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+                    cachedSigningKey = local = Keys.hmacShaKeyFor(keyBytes);
+                }
+            }
+        }
+        return local; // TODO: cachedSigningKey 무효화 메서드 추가 필요
     }
 
     // 기본 토큰 생성
@@ -40,14 +55,18 @@ public class JwtTokenProvider {
         return generateToken(new HashMap<>(), username);
     }
 
-    // 추가 클레임을 포함한 토큰 생성
+    // 추가 클레임을 포함한 토큰 생성 (access)
     public String generateToken(Map<String, Object> extraClaims, String username) {
-        return buildToken(extraClaims, username, jwtAccessExpiration);
+        Map<String, Object> claims = new HashMap<>(extraClaims);
+        claims.put("token_type", "access");
+        return buildToken(claims, username, jwtAccessExpiration);
     }
 
     // 리프레시 토큰 생성
     public String generateRefreshToken(String username) {
-        return buildToken(new HashMap<>(), username, jwtRefreshExpiration);
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("token_type", "refresh");
+        return buildToken(claims, username, jwtRefreshExpiration);
     }
 
     // 토큰 빌드 메서드
@@ -58,6 +77,8 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .claims(extraClaims)
                 .subject(username)
+                .issuer(issuer)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())
@@ -105,6 +126,7 @@ public class JwtTokenProvider {
         return extractAllClaims(token);
     }
 
+    // 토큰 서명 만료 여부 검증
     public boolean validateToken(String token) {
         try {
             extractAllClaims(token);
@@ -114,14 +136,29 @@ public class JwtTokenProvider {
         }
     }
 
+    // Access 토큰만 유효성 검사 후 Claims 반환 (유효하지 않으면 null)
+    public Claims parseIfValidAccess(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            String tokenType = claims.get("token_type", String.class);
+            if (!"access".equals(tokenType)) {
+                return null;
+            }
+            if (isTokenExpired(token)) {
+                return null;
+            }
+            return claims;
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     // 토큰 타입 확인
     public boolean isRefreshToken(String token) {
         try {
-            Date expiration = extractExpiration(token);
-            Date now = new Date();
-            long timeUntilExpiration = expiration.getTime() - now.getTime();
-
-            return timeUntilExpiration > jwtAccessExpiration;
+            Claims claims = extractAllClaims(token);
+            String tokenType = claims.get("token_type", String.class);
+            return "refresh".equals(tokenType) && !isTokenExpired(token);
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
