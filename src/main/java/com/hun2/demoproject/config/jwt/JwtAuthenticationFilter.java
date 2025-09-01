@@ -18,6 +18,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import io.jsonwebtoken.Claims;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    /*
+     * 요청별 JWT 토큰 검증 및 인증 처리.
+     */
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
@@ -36,8 +39,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String auth = request.getHeader("Authorization");
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
+
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 Claims claims = jwtTokenProvider.parseIfValidAccess(token);
+
                 if (claims != null) {
                     String username = claims.getSubject();
                     UserDetails user = userDetailsService.loadUserByUsername(username);
@@ -54,6 +59,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/auth/") || path.startsWith("/public/");
+        return path.startsWith("/auth/") || path.startsWith("/public/") || path.startsWith("/h2-console");
     }
 }

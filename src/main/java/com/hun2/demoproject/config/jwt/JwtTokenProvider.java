@@ -20,6 +20,9 @@ import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtTokenProvider {
+    /*
+     * 비밀키/만료/발급자 설정을 읽어 HMAC 서명으로 JWT를 생성·검증.
+     */
 
     @Value("${jwt.secret}")
     private String secretKey;
