@@ -2,25 +2,37 @@ package com.hun2.demoproject.controller;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.hun2.demoproject.domain.User;
+import com.hun2.demoproject.dto.auth.LoginRequestDto;
+import com.hun2.demoproject.dto.auth.SignupRequestDto;
+import com.hun2.demoproject.dto.auth.TokenResponseDto;
+import com.hun2.demoproject.service.AuthService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    // TODO: 회원가입
-    @PostMapping("/signup")
-    public User signup(@RequestBody User user) {
-        return null;
+    private final AuthService authService;
+
+    @PostMapping("/login")
+    public TokenResponseDto login(@RequestBody LoginRequestDto req) {
+        return authService.login(req);
     }
 
-    // TODO: 로그인
-    @PostMapping("/login")
-    public User login(@RequestBody User user) {
-        return null;
+    @PostMapping("/signup")
+    public TokenResponseDto signup(@RequestBody SignupRequestDto req) {
+        return authService.signup(req);
+    }
+
+    @PostMapping("/refresh")
+    public TokenResponseDto refresh(@RequestHeader("X-Refresh-Token") String refreshToken) {
+        return authService.refresh(refreshToken);
     }
 
     // TODO: 로그아웃
@@ -29,7 +41,4 @@ public class AuthController {
         return;
     }
 
-    // TODO: 새로운 토큰 발급
-    
-    // TODO: 비밀번호 초기화
 }
